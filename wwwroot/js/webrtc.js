@@ -1,177 +1,156 @@
-﻿"use strict";
+"use strict";
 
-var connection = new signalR.HubConnectionBuilder().withUrl("/WebRTCHub").build();
-
-/****************************************************************************
-* Initial setup
-****************************************************************************/
+const connection = new signalR.HubConnectionBuilder().withUrl("/WebRTCHub").build();
 
 const configuration = {
-    //'iceServers': [{
-    //    'urls': 'stun:stun.l.google.com:19302'
-    //}]
+    // Add STUN/TURN servers here if needed
 };
-const peerConn = new RTCPeerConnection(configuration);
+
+const peers = {};
+const participants = new Set();
 
 const roomNameTxt = document.getElementById('roomNameTxt');
 const createRoomBtn = document.getElementById('createRoomBtn');
-const roomTable = document.getElementById('roomTable');
+const leaveRoomBtn = document.getElementById('leaveRoomBtn');
+const roomList = document.getElementById('roomList');
+const participantList = document.getElementById('participantList');
 const connectionStatusMessage = document.getElementById('connectionStatusMessage');
-const fileInput = document.getElementById('fileInput');
-const sendFileBtn = document.getElementById('sendFileBtn');
-const fileTable = document.getElementById('fileTable');
+const roomBadge = document.getElementById('roomBadge');
+const videoGrid = document.getElementById('videoGrid');
 const localVideo = document.getElementById('localVideo');
-const remoteVideo = document.getElementById('remoteVideo');
 
-let myRoomId;
-let localStream;
-let remoteStream;
-let fileReader;
-let isInitiator = false;
-let hasRoomJoined = false;
+let myRoomId = null;
+let myConnectionId = null;
+let localStream = null;
 
-fileInput.disabled = true;
-sendFileBtn.disabled = true;
+createRoomBtn.addEventListener('click', () => {
+    const name = roomNameTxt.value || 'اتاق جدید';
+    connection.invoke("CreateRoom", name).catch(console.error);
+});
 
-$(roomTable).DataTable({
-    columns: [
-        { data: 'RoomId', "width": "30%" },
-        { data: 'Name', "width": "50%" },
-        { data: 'Button', "width": "15%" }
-    ],
-    "lengthChange": false,
-    "searching": false,
-    "language": {
-        "emptyTable": "No room available"
+leaveRoomBtn.addEventListener('click', () => {
+    if (myRoomId) {
+        connection.invoke("LeaveRoom", myRoomId).catch(console.error);
+        resetPeers();
+        setRoomBadge(null);
+        participants.clear();
+        renderParticipants();
     }
 });
 
-//setup my video here.
-//grabWebCamVideo();
-
-/****************************************************************************
-* Signaling server
-****************************************************************************/
-
-// Connect to the signaling server
-connection.start().then(function () {
-
-    connection.on('updateRoom', function (data) {
-        var obj = JSON.parse(data);
-        $(roomTable).DataTable().clear().rows.add(obj).draw();
-    });
-
-    connection.on('created', function (roomId) {
-        console.log('Created room', roomId);
-        roomNameTxt.disabled = true;
-        createRoomBtn.disabled = true;
-        hasRoomJoined = true;
-        connectionStatusMessage.innerText = 'You created Room ' + roomId + '. Waiting for participants...';
-        myRoomId = roomId;
-        isInitiator = true;
-    });
-
-    connection.on('joined', function (roomId) {
-        console.log('This peer has joined room', roomId);
-        myRoomId = roomId;
-        isInitiator = false;
-    });
-
-    connection.on('error', function (message) {
-        alert(message);
-    });
-
-    connection.on('ready', function () {
-        console.log('Socket is ready');
-        roomNameTxt.disabled = true;
-        createRoomBtn.disabled = true;
-        hasRoomJoined = true;
-        connectionStatusMessage.innerText = 'Connecting...';
-        createPeerConnection(isInitiator, configuration);
-    });
-
-    connection.on('message', function (message) {
-        console.log('Client received message:', message);
-        signalingMessageCallback(message);
-    });
-
-    connection.on('bye', function () {
-        console.log(`Peer leaving room.`);
-        // If peer did not create the room, re-enter to be creator.
-        connectionStatusMessage.innerText = `Other peer left room ${myRoomId}.`;
-    });
-
-    window.addEventListener('unload', function () {
-        if (hasRoomJoined) {
-            console.log(`Unloading window. Notifying peers in ${myRoomId}.`);
-            connection.invoke("LeaveRoom", myRoomId).catch(function (err) {
-                return console.error(err.toString());
-            });
-        }
-    });
-
-    //Get room list.
-    connection.invoke("GetRoomInfo").catch(function (err) {
-        return console.error(err.toString());
-    });
-
-}).catch(function (err) {
-    return console.error(err.toString());
+roomList.addEventListener('click', (event) => {
+    const card = event.target.closest('[data-room-id]');
+    if (!card) return;
+    if (myRoomId) {
+        alert('در حال حاضر در یک اتاق هستید. ابتدا خارج شوید.');
+        return;
+    }
+    const roomId = card.getAttribute('data-room-id');
+    connection.invoke("Join", roomId).catch(console.error);
 });
 
-/**
-* Send message to signaling server
-*/
-function sendMessage(message) {
-    console.log('Client sending message: ', message);
-    connection.invoke("SendMessage", myRoomId, message).catch(function (err) {
-        return console.error(err.toString());
+connection.start().then(() => {
+    myConnectionId = connection.connectionId;
+    connectionStatusMessage.innerText = 'متصل به سرور سیگنالینگ';
+    connection.invoke("GetRoomInfo");
+}).catch(console.error);
+
+connection.on('updateRoom', function (data) {
+    const rooms = JSON.parse(data);
+    renderRooms(rooms);
+});
+
+connection.on('created', function (roomId) {
+    myRoomId = roomId;
+    participants.add(myConnectionId);
+    setRoomBadge(roomId);
+    connectionStatusMessage.innerText = `اتاق ${roomId} ساخته شد. منتظر پیوستن دیگران...`;
+});
+
+connection.on('joined', function (roomId) {
+    myRoomId = roomId;
+    participants.add(myConnectionId);
+    setRoomBadge(roomId);
+    connectionStatusMessage.innerText = `به اتاق ${roomId} پیوستید.`;
+});
+
+connection.on('participants', function (list) {
+    list.forEach(id => participants.add(id));
+    participants.add(myConnectionId);
+    renderParticipants();
+    list.forEach(handleNewParticipant);
+});
+
+connection.on('peerJoined', function (remoteId) {
+    participants.add(remoteId);
+    renderParticipants();
+    handleNewParticipant(remoteId);
+});
+
+connection.on('peerLeft', function (remoteId) {
+    participants.delete(remoteId);
+    renderParticipants();
+    tearDownPeer(remoteId);
+});
+
+connection.on('signal', function (payload) {
+    const { from, data } = payload;
+    handleSignaling(from, data);
+});
+
+connection.on('error', function (message) {
+    alert(message);
+});
+
+window.addEventListener('unload', function () {
+    if (myRoomId) {
+        connection.invoke("LeaveRoom", myRoomId).catch(console.error);
+    }
+});
+
+function renderRooms(rooms) {
+    roomList.innerHTML = '';
+    if (!rooms || rooms.length === 0) {
+        roomList.innerHTML = '<p class="text-slate-400 text-sm">اتاقی در دسترس نیست</p>';
+        return;
+    }
+
+    rooms.forEach(room => {
+        const card = document.createElement('div');
+        card.className = 'room-card';
+        card.setAttribute('data-room-id', room.RoomId);
+        card.innerHTML = `
+            <div>
+                <p class="text-sm text-slate-100 font-semibold">${room.Name || 'اتاق بدون نام'}</p>
+                <p class="text-xs text-slate-400">شناسه: ${room.RoomId}</p>
+            </div>
+            <div class="badge text-emerald-100 bg-white/5">${room.ParticipantCount || 0} نفر</div>
+        `;
+        roomList.appendChild(card);
     });
 }
 
-/****************************************************************************
-* Room management
-****************************************************************************/
+function renderParticipants() {
+    participantList.innerHTML = '';
+    if (participants.size === 0) {
+        participantList.innerHTML = '<span class="text-slate-400">کسی حضور ندارد</span>';
+        return;
+    }
 
-$(createRoomBtn).click(function () {
-    var name = roomNameTxt.value;
-    connection.invoke("CreateRoom", name).catch(function (err) {
-        return console.error(err.toString());
+    participants.forEach(id => {
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-white/5 text-slate-100';
+        badge.innerText = id === myConnectionId ? 'من' : `کاربر ${id.substring(0, 6)}`;
+        participantList.appendChild(badge);
     });
-});
+}
 
-$('#roomTable tbody').on('click', 'button', function () {
-    if (hasRoomJoined) {
-        alert('You already joined the room. Please use a new tab or window.');
-    } else {
-        var data = $(roomTable).DataTable().row($(this).parents('tr')).data();
-        connection.invoke("Join", data.RoomId).catch(function (err) {
-            return console.error(err.toString());
-        });
-    }
-});
-
-$(fileInput).change(function () {
-    let file = fileInput.files[0];
-    if (file) {
-        sendFileBtn.disabled = false;
-    } else {
-        sendFileBtn.disabled = true;
-    }
-});
-
-$(sendFileBtn).click(function () {
-    sendFileBtn.disabled = true;
-    sendFile();
-});
-
-/****************************************************************************
-* User media (webcam)
-****************************************************************************/
+function setRoomBadge(roomId) {
+    roomBadge.innerText = roomId ? `اتاق #${roomId}` : 'بدون اتاق';
+}
 
 function grabWebCamVideo() {
-    console.log('Getting user media (video) ...');
-    var config = {
+    const config = {
         audio: document.getElementById('audio').checked,
         video: {
             facingMode: document.getElementById('camera_front').checked ? 'user' : 'environment',
@@ -179,193 +158,126 @@ function grabWebCamVideo() {
             height: { exact: document.getElementById('camera_height').value }
         }
     };
-    console.log('User Config:', config)
 
     navigator.mediaDevices.getUserMedia(config)
         .then(gotStream)
         .catch(function (e) {
-            alert('getUserMedia() error: ' + e.name);
+            alert('خطا در دریافت تصویر: ' + e.name);
         });
 }
 
 function gotStream(stream) {
-    console.log('getUserMedia video stream URL:', stream);
     localStream = stream;
-    peerConn.addStream(localStream);
     localVideo.srcObject = stream;
-}
-
-/****************************************************************************
-* WebRTC peer connection and data channel
-****************************************************************************/
-
-var dataChannel;
-
-function signalingMessageCallback(message) {
-    if (message.type === 'offer') {
-        console.log('Got offer. Sending answer to peer.');
-        peerConn.setRemoteDescription(new RTCSessionDescription(message), function () { },
-            logError);
-        peerConn.createAnswer(onLocalSessionCreated, logError);
-
-    } else if (message.type === 'answer') {
-        console.log('Got answer.');
-        peerConn.setRemoteDescription(new RTCSessionDescription(message), function () { },
-            logError);
-
-    } else if (message.type === 'candidate') {
-        peerConn.addIceCandidate(new RTCIceCandidate({
-            candidate: message.candidate
-        }));
-
-    }
-}
-
-function createPeerConnection(isInitiator, config) {
-    console.log('Creating Peer connection as initiator?', isInitiator, 'config:',
-        config);
-
-    // send any ice candidates to the other peer
-    peerConn.onicecandidate = function (event) {
-        console.log('icecandidate event:', event);
-        if (event.candidate) {
-            // Trickle ICE
-            //sendMessage({
-            //    type: 'candidate',
-            //    label: event.candidate.sdpMLineIndex,
-            //    id: event.candidate.sdpMid,
-            //    candidate: event.candidate.candidate
-            //});
-        } else {
-            console.log('End of candidates.');
-            // Vanilla ICE
-            sendMessage(peerConn.localDescription);
-        }
-    };
-
-    peerConn.ontrack = function (event) {
-        console.log('icecandidate ontrack event:', event);
-        remoteVideo.srcObject = event.streams[0];
-    };
-
-    if (isInitiator) {
-        console.log('Creating Data Channel');
-        dataChannel = peerConn.createDataChannel('sendDataChannel');
-        onDataChannelCreated(dataChannel);
-
-        console.log('Creating an offer');
-        peerConn.createOffer(onLocalSessionCreated, logError);
-    } else {
-        peerConn.ondatachannel = function (event) {
-            console.log('ondatachannel:', event.channel);
-            dataChannel = event.channel;
-            onDataChannelCreated(dataChannel);
-        };
-    }
-}
-
-function onLocalSessionCreated(desc) {
-    console.log('local session created:', desc);
-    peerConn.setLocalDescription(desc, function () {
-        // Trickle ICE
-        //console.log('sending local desc:', peerConn.localDescription);
-        //sendMessage(peerConn.localDescription);
-    }, logError);
-}
-
-function onDataChannelCreated(channel) {
-    console.log('onDataChannelCreated:', channel);
-
-    channel.onopen = function () {
-        console.log('Channel opened!!!');
-        connectionStatusMessage.innerText = 'Channel opened!!';
-        fileInput.disabled = false;
-    };
-
-    channel.onclose = function () {
-        console.log('Channel closed.');
-        connectionStatusMessage.innerText = 'Channel closed.';
-    }
-
-    channel.onmessage = onReceiveMessageCallback();
-}
-
-function onReceiveMessageCallback() {
-    let count;
-    let fileSize, fileName;
-    let receiveBuffer = [];
-
-    return function onmessage(event) {
-        if (typeof event.data === 'string') {
-            const fileMetaInfo = event.data.split(',');
-            fileSize = parseInt(fileMetaInfo[0]);
-            fileName = fileMetaInfo[1];
-            count = 0;
-            return;
-        }
-
-        receiveBuffer.push(event.data);
-        count += event.data.byteLength;
-
-        if (fileSize === count) {
-            // all data chunks have been received
-            const received = new Blob(receiveBuffer);
-            receiveBuffer = [];
-
-            $(fileTable).children('tbody').append('<tr><td><a></a></td></tr>');
-            const downloadAnchor = $(fileTable).find('a:last');
-            downloadAnchor.attr('href', URL.createObjectURL(received));
-            downloadAnchor.attr('download', fileName);
-            downloadAnchor.text(`${fileName} (${fileSize} bytes)`);
-        }
-    };
-}
-
-function sendFile() {
-    const file = fileInput.files[0];
-    console.log(`File is ${[file.name, file.size, file.type, file.lastModified].join(' ')}`);
-
-    if (file.size === 0) {
-        alert('File is empty, please select a non-empty file.');
-        return;
-    }
-
-    //send file size and file name as comma separated value.
-    dataChannel.send(file.size + ',' + file.name);
-
-    const chunkSize = 16384;
-    fileReader = new FileReader();
-    let offset = 0;
-    fileReader.addEventListener('error', error => console.error('Error reading file:', error));
-    fileReader.addEventListener('abort', event => console.log('File reading aborted:', event));
-    fileReader.addEventListener('load', e => {
-        console.log('FileRead.onload ', e);
-        dataChannel.send(e.target.result);
-        offset += e.target.result.byteLength;
-        if (offset < file.size) {
-            readSlice(offset);
-        } else {
-            alert(`${file.name} has been sent successfully.`);
-            sendFileBtn.disabled = false;
-        }
+    Object.values(peers).forEach(peer => {
+        stream.getTracks().forEach(track => peer.addTrack(track, stream));
     });
-    const readSlice = o => {
-        console.log('readSlice ', o);
-        const slice = file.slice(offset, o + chunkSize);
-        fileReader.readAsArrayBuffer(slice);
-    };
-    readSlice(0);
 }
 
-/****************************************************************************
-* Auxiliary functions
-****************************************************************************/
+function handleNewParticipant(remoteId) {
+    if (remoteId === myConnectionId) return;
+
+    const initiator = myConnectionId.localeCompare(remoteId) < 0;
+    const pc = ensurePeer(remoteId);
+
+    if (initiator) {
+        pc.createOffer().then(offer => {
+            return pc.setLocalDescription(offer);
+        }).then(() => {
+            sendSignal(remoteId, pc.localDescription);
+        }).catch(logError);
+    }
+}
+
+function ensurePeer(remoteId) {
+    if (peers[remoteId]) return peers[remoteId];
+
+    const pc = new RTCPeerConnection(configuration);
+
+    if (localStream) {
+        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+    }
+
+    pc.onicecandidate = function (event) {
+        if (event.candidate) {
+            sendSignal(remoteId, {
+                type: 'candidate',
+                candidate: event.candidate
+            });
+        }
+    };
+
+    pc.ontrack = function (event) {
+        attachRemoteVideo(remoteId, event.streams[0]);
+    };
+
+    pc.onconnectionstatechange = function () {
+        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+            tearDownPeer(remoteId);
+        }
+    };
+
+    peers[remoteId] = pc;
+    return pc;
+}
+
+function handleSignaling(from, data) {
+    const pc = ensurePeer(from);
+
+    if (data.type === 'offer') {
+        pc.setRemoteDescription(new RTCSessionDescription(data))
+            .then(() => pc.createAnswer())
+            .then(answer => pc.setLocalDescription(answer))
+            .then(() => sendSignal(from, pc.localDescription))
+            .catch(logError);
+    } else if (data.type === 'answer') {
+        pc.setRemoteDescription(new RTCSessionDescription(data)).catch(logError);
+    } else if (data.type === 'candidate') {
+        pc.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(logError);
+    }
+}
+
+function sendSignal(targetId, message) {
+    if (!myRoomId) return;
+    connection.invoke("SendSignal", myRoomId, targetId, message).catch(console.error);
+}
+
+function attachRemoteVideo(remoteId, stream) {
+    let existing = document.getElementById(`remote-${remoteId}`);
+    if (!existing) {
+        const card = document.createElement('div');
+        card.className = 'video-card';
+        card.setAttribute('data-remote-id', remoteId);
+        card.innerHTML = `
+            <div class="flex items-center justify-between text-sm text-slate-300">
+                <span>کاربر ${remoteId.substring(0, 6)}</span>
+                <span class="text-xs bg-white/10 px-2 py-1 rounded-full">Remote</span>
+            </div>
+            <video id="remote-${remoteId}" class="video-frame" autoplay playsinline></video>
+        `;
+        videoGrid.appendChild(card);
+        existing = card.querySelector('video');
+    }
+    existing.srcObject = stream;
+}
+
+function tearDownPeer(remoteId) {
+    const pc = peers[remoteId];
+    if (pc) {
+        pc.close();
+        delete peers[remoteId];
+    }
+    const videoCard = videoGrid.querySelector(`[data-remote-id="${remoteId}"]`);
+    if (videoCard) {
+        videoGrid.removeChild(videoCard);
+    }
+}
+
+function resetPeers() {
+    Object.keys(peers).forEach(tearDownPeer);
+}
 
 function logError(err) {
     if (!err) return;
-    if (typeof err === 'string') {
-        console.warn(err);
-    } else {
-        console.warn(err.toString(), err);
-    }
+    console.warn(err.toString(), err);
 }

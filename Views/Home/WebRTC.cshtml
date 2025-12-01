@@ -1,101 +1,120 @@
-﻿@{
-    ViewData["Title"] = "WebRTC Remote Call (Powered by AliKhadivi)";
+@{
+    ViewData["Title"] = "گفتگوی گروهی وبRTC";
 }
 
-
-
-<div>
-    <h4>Settings:</h4>
-    <div class="row mb-3">
-        <div class="form-check" style="width: auto;">
-            <lable class="form-check-label" for="audio">Audio</lable>
-            <input class="form-check-input" id="audio" type="checkbox" checked />
+<div class="min-h-screen bg-slate-950 text-slate-100">
+    <div class="mx-auto max-w-6xl px-4 py-10 space-y-8">
+        <div class="flex items-center justify-between gap-4">
+            <div>
+                <p class="text-sm uppercase tracking-[0.3em] text-emerald-300">Realtime</p>
+                <h1 class="text-3xl md:text-4xl font-semibold text-white">تماس ویدیویی گروهی</h1>
+                <p class="mt-2 text-slate-300">از طریق WebRTC و SignalR با دوستانتان در یک محیط مدرن گفتگو کنید.</p>
+            </div>
+            <div class="hidden sm:flex items-center gap-2 rounded-full bg-white/5 px-4 py-2 border border-white/10 shadow-lg">
+                <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <p id="connectionStatusMessage" class="text-sm text-slate-200">در انتظار اتصال...</p>
+            </div>
         </div>
-        <div class="form-check" style="width: auto;">
-            <lable class="form-check-label" for="camera_front">Front Camera</lable>
-            <input class="form-check-input" id="camera_front" type="checkbox" checked />
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-1 space-y-4">
+                <div class="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-4 shadow-lg space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-semibold">تنظیمات دستگاه</h3>
+                        <span class="text-xs text-slate-300">تصویر و صدا</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 text-sm">
+                        <label class="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl p-3">
+                            <input id="audio" type="checkbox" class="h-4 w-4 accent-emerald-400" checked>
+                            <span>میکروفن فعال</span>
+                        </label>
+                        <label class="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl p-3">
+                            <input id="camera_front" type="checkbox" class="h-4 w-4 accent-emerald-400" checked>
+                            <span>دوربین جلو</span>
+                        </label>
+                        <div class="col-span-2 grid grid-cols-2 gap-3">
+                            <div>
+                                <label for="camera_width" class="block text-xs text-slate-300">عرض تصویر</label>
+                                <input id="camera_width" type="number" value="1920" class="input-control" placeholder="1920" />
+                            </div>
+                            <div>
+                                <label for="camera_height" class="block text-xs text-slate-300">ارتفاع تصویر</label>
+                                <input id="camera_height" type="number" value="1080" class="input-control" placeholder="1080" />
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-primary w-full" onclick="grabWebCamVideo()">فعال‌سازی دوربین</button>
+                </div>
+
+                <div class="rounded-2xl border border-white/10 bg-white/5 backdrop-blur p-4 shadow-lg space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-semibold">مدیریت اتاق</h3>
+                        <span class="text-xs text-slate-300">ساخت یا ورود</span>
+                    </div>
+                    <div class="space-y-3">
+                        <label class="block text-sm text-slate-200" for="roomNameTxt">نام اتاق</label>
+                        <input class="input-control" type="text" id="roomNameTxt" placeholder="مثلاً دوستان پنجشنبه" />
+                        <div class="grid grid-cols-2 gap-3">
+                            <button type="button" class="btn-primary" id="createRoomBtn">ساخت اتاق</button>
+                            <button type="button" class="btn-ghost" id="leaveRoomBtn">خروج</button>
+                        </div>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h4 class="font-semibold">اتاق‌های باز</h4>
+                            <span class="text-xs text-slate-400">برای ورود روی کارت کلیک کنید</span>
+                        </div>
+                        <div id="roomList" class="space-y-3"></div>
+                    </div>
+                </div>
+
+                <div class="rounded-2xl border border-emerald-400/20 bg-emerald-400/5 backdrop-blur p-4 shadow-lg space-y-3">
+                    <div class="flex items-center gap-2">
+                        <span class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span>
+                        <p class="text-sm text-emerald-100">شرکت‌کنندگان فعلی</p>
+                    </div>
+                    <div id="participantList" class="flex flex-wrap gap-2 text-sm"></div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 space-y-4">
+                <div class="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/60 to-slate-800/60 p-5 shadow-2xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <p class="text-xs text-slate-400">نمای کلی تماس</p>
+                            <h3 class="text-xl font-semibold text-white">اتاق فعال</h3>
+                        </div>
+                        <div class="flex items-center gap-2 text-sm text-slate-300">
+                            <span class="inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
+                            <span id="roomBadge">بدون اتاق</span>
+                        </div>
+                    </div>
+                    <div id="videoGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 min-h-[320px]">
+                        <div class="video-card">
+                            <div class="flex items-center justify-between text-sm text-slate-300">
+                                <span>ویدیو من</span>
+                                <span class="text-xs bg-white/10 px-2 py-1 rounded-full">Local</span>
+                            </div>
+                            <video id="localVideo" class="video-frame" autoplay playsinline muted></video>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
+
+        <footer class="text-center text-sm text-slate-400 pt-6 border-t border-white/5">
+            ساخته شده با ❤️ توسط تیم WebRTC و SignalR
+        </footer>
     </div>
-    <div class="mb-3 row" style="align-items: center;">
-        <lable for="camera_width" style="width: auto;">Camera Width: </lable>
-        <input class="form-control" id="camera_width" type="number" value="1920" placeholder="Default (FullHD): 1920" style="width: 220px;">
-
-        <lable for="camera_height" style="width: auto;">Camera Height: </lable>
-        <input class="form-control" id="camera_height" type="number" value="1080" placeholder="Default (FullHD): 1080" style="width: 220px;">
-    </div>
-    <button type="button" class="btn btn-primary" onclick="grabWebCamVideo()">Get Camera</button>
-</div>
-
-<div class="roomCreate row" style="align-items: center;">
-    <h4>Create Room:</h4>
-
-    <label for="name" style="width:auto">Room Name:</label>
-    <input class="form-control mx-1" type="text" id="roomNameTxt" style="width: 220px;" />
-    <button type="button" class="btn btn-primary" id="createRoomBtn" style="width:auto">Create</button>
-</div>
-
-<div>
-    <table id="roomTable" class="display" style="width:100%;">
-        <thead>
-            <tr>
-                <th>Room ID</th>
-                <th>Name</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-        </tbody>
-    </table>
-</div>
-
-<div class="borderLine"></div>
-
-<div>
-    <div class="connectionStatus">
-        <p id="connectionStatusMessage">*You can create your own room or join the other room.</p>
-    </div>
-    <div class="controlls">
-        <button type="button" class="btn btn-primary" onclick="document.getElementById('localVideo').requestFullscreen()">Full Local</button>
-        <button type="button" class="btn btn-primary" onclick="document.getElementById('remoteVideo').requestFullscreen()">Full Remote</button>
-        <button type="button" class="btn btn-primary" onclick="document.getElementById('localVideo').muted = !document.getElementById('localVideo').muted">Mute Local</button>
-        <button type="button" class="btn btn-primary" onclick="document.getElementById('remoteVideo').muted = !document.getElementById('remoteVideo').muted">Mute Remote</button>
-        <button type="button" class="btn btn-danger" onclick="location.reload()">Reload</button>
-    </div>
-    <h5>Video chat</h5>
-    <div class="videoArea">
-        <video id="localVideo" autoplay playsinline controls></video>
-        <video id="remoteVideo" autoplay playsinline controls></video>
-    </div>
-
-    <h5>File sharing</h5>
-    <div id="fileShare">
-        <input class="form-control" type="file" id="fileInput">
-        <button type="button" class="btn btn-primary" id="sendFileBtn" class="sendFileBtn">Send</button>
-    </div>
-    <table id="fileTable" class="fileTable">
-        <thead>
-            <tr>
-                <th>Received Files</th>
-            </tr>
-        </thead>
-        <tbody>
-        </tbody>
-    </table>
-
-</div>
-
-<div class="AK_Footer">
-    Powered by Ali Khadivi.
 </div>
 
 @section StyleSheets{
-    <link rel="stylesheet" href="~/css/jquery.dataTables.min.css" type="text/css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css" />
     <link rel="stylesheet" href="~/css/webrtc.css" type="text/css" />
 }
 
 @section Scripts{
     <script type="text/javascript" src="~/lib/signalr/dist/browser/signalr.js"></script>
     <script type="text/javascript" src="~/js/adapter-latest.js"></script>
-    <script type="text/javascript" src="~/js/jquery.dataTables.min.js"></script>
     <script type="text/javascript" src="~/js/webrtc.js"></script>
 }
