@@ -1,31 +1,31 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"]</title>
 
-
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="~/css/site.css" />
     @RenderSection("StyleSheets", required: false)
 </head>
-<body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container">
-                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="WebRTC">WebRTC Remote Call (Powered by AliKhadivi)</a>
+<body class="bg-slate-950">
+    <header class="sticky top-0 z-10 bg-slate-900/80 backdrop-blur border-b border-white/5">
+        <nav class="max-w-6xl mx-auto flex items-center justify-between px-4 py-3 text-white">
+            <a class="text-lg font-semibold tracking-tight" asp-area="" asp-controller="Home" asp-action="WebRTC">WebRTC Remote Call</a>
+            <div class="flex items-center gap-3 text-sm text-slate-200">
+                <span class="inline-flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="hidden sm:inline">پشتیبانی از گفتگوی گروهی</span>
             </div>
         </nav>
     </header>
-    <div class="container">
+    <div>
         <main role="main" class="pb-3">
             @RenderBody()
         </main>
     </div>
 
     <script src="~/lib/jquery/dist/jquery.js"></script>
-    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
 
     @RenderSection("Scripts", required: false)

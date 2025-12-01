@@ -1,49 +1,103 @@
-﻿body {
-    font-family: sans-serif;
+body {
+    font-family: 'Inter', 'IRANSans', system-ui, -apple-system, sans-serif;
 }
 
-video {
-    max-width: 100%;
-    width: 320px;
-}
-
-h4 {
-    margin: 1em 0;
-}
-
-h5 {
-    margin: 1em 0;
-}
-
-.roomCreate {
-    margin: 2em 0 1em 0;
-}
-
-.joinButton {
+.input-control {
     width: 100%;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    padding: 10px 12px;
+    color: #e2e8f0;
+    outline: none;
 }
 
-.borderLine {
-    border-top: 1px dotted;
-    margin: 1em 0;
+.input-control:focus {
+    border-color: rgba(52, 211, 153, 0.8);
+    box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.15);
 }
 
-.sendFileBtn {
-    display: block;
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #fff;
+    padding: 10px 14px;
+    font-weight: 600;
+    transition: transform 0.1s ease, box-shadow 0.2s ease;
+    box-shadow: 0 10px 30px rgba(16, 185, 129, 0.25);
+}
+
+.btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 36px rgba(16, 185, 129, 0.3);
+}
+
+.btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+    color: #e2e8f0;
+    padding: 10px 14px;
+    font-weight: 600;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.btn-ghost:hover {
+    border-color: rgba(52, 211, 153, 0.5);
+    background: rgba(52, 211, 153, 0.08);
+}
+
+.video-card {
+    background: radial-gradient(circle at top left, rgba(52, 211, 153, 0.15), transparent 40%),
+        radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.12), transparent 35%),
+        rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 14px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+    min-height: 180px;
+}
+
+.video-frame {
+    width: 100%;
+    border-radius: 14px;
+    background: #0b1224;
+    border: 1px solid rgba(255, 255, 255, 0.08);
     margin-top: 10px;
 }
 
-.fileTable {
-    border: 1px solid;
-    margin: 1em 0;
-    width: 500px;
+.room-card {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 16px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    cursor: pointer;
+    transition: transform 0.1s ease, border-color 0.2s ease, background 0.2s ease;
 }
 
-    .fileTable th {
-        background: #e8eaed;
-        border: 1px solid;
-    }
+.room-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(52, 211, 153, 0.6);
+    background: rgba(52, 211, 153, 0.06);
+}
 
-    .fileTable td {
-        border: 1px dotted;
-    }
+.badge {
+    border-radius: 9999px;
+    padding: 6px 10px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
